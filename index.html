@@ -565,7 +565,7 @@ tbody tr:hover td{background:var(--card2);}
     <div class="form-grid">
       <div class="fg"><label>Data *</label><input type="date" id="r-data"></div>
       <div class="fg"><label>Fonte * (origem)</label><select id="r-fonte"><option value="">— selecione —</option></select></div>
-      <div class="fg"><label>Canal / Conta *</label><select id="r-pgto">
+      <div class="fg"><label>Canal / Conta *</label><select id="r-pgto" onchange="autoSetRecStatus(this.value)">
         <option value="Banco">🏦 Banco (PIX/débito/depósito)</option>
         <option value="Dinheiro">💵 Dinheiro (caixa físico)</option>
         <option value="Crédito">💳 Crédito (A Receber)</option>
@@ -1726,9 +1726,30 @@ function removeInvoiceLine(id){
   if(!invoiceLines.length)addInvoiceLine();
   renderInvoiceLines();
 }
+function getItensOpts(){
+  // Merge DB.itens (from Supabase) with lista 'item' entries (added via Listas de Validação)
+  // Lista items use their id as value prefixed with 'lista:' so we can distinguish them
+  const dbItens=sortByNome(DB.itens).map(i=>`<option value="${i.id}">${i.nome}${i.categoria?' ('+i.categoria+')':''}</option>`);
+  const listaItens=getListaValues('item').filter(v=>!DB.itens.find(i=>i.nome.toLowerCase()===v.toLowerCase()))
+    .map(v=>`<option value="lista:${v}">${v}</option>`);
+  return'<option value="">— selecione —</option>'+dbItens.join('')+(listaItens.length?'<option disabled>── Listas de Validação ──</option>'+listaItens.join(''):'');
+}
+function resolveItemFromLine(lineId){
+  // Returns {itemId, nome, categoria, subcategoria, marcaId, unidade} from either DB or lista
+  const sel=document.querySelector(`#line-${lineId} select`);
+  if(!sel||!sel.value)return null;
+  if(sel.value.startsWith('lista:')){
+    const nome=sel.value.replace('lista:','');
+    const un=document.getElementById('line-un-'+lineId)?.value||'un';
+    return{itemId:null,nome,categoria:'',subcategoria:'',marcaId:null,unidade:un,isLista:true};
+  }
+  const item=DB.itens.find(i=>i.id===sel.value);
+  if(!item)return null;
+  return{itemId:item.id,nome:item.nome,categoria:item.categoria||'',subcategoria:item.subcategoria||'',marcaId:item.marcaId||null,unidade:item.unidade||'un',isLista:false};
+}
 function renderInvoiceLines(){
   const wrap=document.getElementById('invoice-lines-wrap');if(!wrap)return;
-  const itensOpts='<option value="">— selecione —</option>'+sortByNome(DB.itens).map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');
+  const itensOpts=getItensOpts();
   const unOpts=getListaValues('unidade').map(u=>`<option value="${u}">${u}</option>`).join('');
   wrap.innerHTML=`<div class="invoice-line invoice-line-header"><span>Item</span><span>Qtd</span><span>Un.</span><span>Preço Unit.</span><span>Total</span><span></span></div>`+
   invoiceLines.map(l=>`
@@ -1767,29 +1788,22 @@ function saveDespesas(){
   if(!data||!fornecedorId||!pagamento){toast('Preencha Data, Fornecedor e Canal de Pagamento.','error');return;}
   if(editingIds.despesa){
     // single edit mode
-    const lineWrap=document.getElementById('invoice-lines-wrap');
     const firstLine=invoiceLines[0];if(!firstLine)return;
-    const itemSel=document.querySelector(`#line-${firstLine.id} select`);
-    const itemId=itemSel?.value;
+    const resolved=resolveItemFromLine(firstLine.id);
     const qtd=parseFloat(document.getElementById('line-qtd-'+firstLine.id)?.value)||0;
     const preco=parseFloat(document.getElementById('line-preco-'+firstLine.id)?.value)||0;
-    const un=document.getElementById('line-un-'+firstLine.id)?.value||'un';
-    const item=DB.itens.find(i=>i.id===itemId);
     const rec=DB.despesas.find(d=>d.id===editingIds.despesa);
-    if(rec){Object.assign(rec,{data,ano:parseInt(data.slice(0,4)),fornecedorId,itemId,categoria:item?.categoria||'',subcategoria:item?.subcategoria||'',marcaId:item?.marcaId||null,unidade:un,qtd,preco,total:qtd*preco,pagamento,contaId,responsavelId:document.getElementById('d-resp').value||null,lancadorId:document.getElementById('d-lanc').value||null,reembolsavel:document.getElementById('d-apagar').checked,reembolsado:document.getElementById('d-pago').checked,recibo:document.getElementById('d-nf').value.trim(),obs:document.getElementById('d-obs').value.trim()});}
+    if(rec){Object.assign(rec,{data,ano:parseInt(data.slice(0,4)),fornecedorId,itemId:resolved?.itemId||null,itemNome:resolved?.nome||'',categoria:resolved?.categoria||'',subcategoria:resolved?.subcategoria||'',marcaId:resolved?.marcaId||null,unidade:resolved?.unidade||'un',qtd,preco,total:qtd*preco,pagamento,contaId,responsavelId:document.getElementById('d-resp').value||null,lancadorId:document.getElementById('d-lanc').value||null,reembolsavel:document.getElementById('d-apagar').checked,reembolsado:document.getElementById('d-pago').checked,recibo:document.getElementById('d-nf').value.trim(),obs:document.getElementById('d-obs').value.trim()});}
     saveLocal();enqueue('despesas',rec.id,'upsert',localToRow(rec,'despesas'));
     clearDespesa();toast('Despesa atualizada!','success');renderDespesasTable();renderPosicoesTable();return;
   }
   let saved=0;
   for(const line of invoiceLines){
-    const itemSel=document.querySelector(`#line-${line.id} select`);
-    const itemId=itemSel?.value;if(!itemId)continue;
+    const resolved=resolveItemFromLine(line.id);if(!resolved)continue;
     const qtd=parseFloat(document.getElementById('line-qtd-'+line.id)?.value)||0;
     const preco=parseFloat(document.getElementById('line-preco-'+line.id)?.value)||0;
     if(!qtd||!preco)continue;
-    const un=document.getElementById('line-un-'+line.id)?.value||'un';
-    const item=DB.itens.find(i=>i.id===itemId);
-    const rec={id:uid(),data,ano:parseInt(data.slice(0,4)),fornecedorId,itemId,categoria:item?.categoria||'',subcategoria:item?.subcategoria||'',marcaId:item?.marcaId||null,unidade:un,qtd,preco,total:qtd*preco,pagamento,contaId,responsavelId:document.getElementById('d-resp').value||null,lancadorId:document.getElementById('d-lanc').value||null,reembolsavel:document.getElementById('d-apagar').checked,reembolsado:document.getElementById('d-pago').checked,recibo:document.getElementById('d-nf').value.trim(),obs:document.getElementById('d-obs').value.trim()};
+    const rec={id:uid(),data,ano:parseInt(data.slice(0,4)),fornecedorId,itemId:resolved.itemId||null,itemNome:resolved.nome||'',categoria:resolved.categoria||'',subcategoria:resolved.subcategoria||'',marcaId:resolved.marcaId||null,unidade:resolved.unidade||'un',qtd,preco,total:qtd*preco,pagamento,contaId,responsavelId:document.getElementById('d-resp').value||null,lancadorId:document.getElementById('d-lanc').value||null,reembolsavel:document.getElementById('d-apagar').checked,reembolsado:document.getElementById('d-pago').checked,recibo:document.getElementById('d-nf').value.trim(),obs:document.getElementById('d-obs').value.trim()};
     DB.despesas.push(rec);enqueue('despesas',rec.id,'upsert',localToRow(rec,'despesas'));saved++;
   }
   if(!saved){toast('Adicione pelo menos um item com quantidade e preço.','warn');return;}
@@ -1852,13 +1866,13 @@ function renderDespesasTable(){
   const tbody=document.getElementById('despesasBody');if(!tbody)return;
   if(!rows.length){tbody.innerHTML='<tr class="empty-row"><td colspan="15">Nenhum lançamento.</td></tr>';return;}
   tbody.innerHTML=rows.map(d=>{
-    const f=DB.fornecedores.find(x=>x.id===d.fornecedorId);const i=DB.itens.find(x=>x.id===d.itemId);
+    const f=DB.fornecedores.find(x=>x.id===d.fornecedorId);const i=DB.itens.find(x=>x.id===d.itemId);const iNome=i?i.nome:(d.itemNome||'—');
     const m=DB.marcas.find(x=>x.id===d.marcaId);const p=DB.pessoas.find(x=>x.id===d.responsavelId);
     const c=DB.posicoes.find(x=>x.id===d.contaId);
     let rb='<span class="badge badge-gray">N/A</span>';
     if(d.reembolsavel&&!d.reembolsado)rb='<span class="badge badge-yellow">A Pagar</span>';
     if(d.reembolsavel&&d.reembolsado)rb='<span class="badge badge-green">Pago</span>';
-    return`<tr><td>${fmtDate(d.data)}</td><td>${f?f.nome:'—'}</td><td>${i?i.nome:'—'}</td><td>${m?`<span class="badge badge-purple">${m.nome}</span>`:'—'}</td><td><span class="badge badge-gray">${d.categoria||'—'}</span></td><td class="text-right">${Number(d.qtd).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td class="c-muted">${d.unidade||'—'}</td><td class="text-right">${brl(d.preco)}</td><td class="text-right font-bold c-red">${brl(d.total)}</td><td><span class="badge badge-blue">${d.pagamento||'—'}</span></td><td class="c-muted">${c?c.nome:'—'}</td><td class="c-muted">${p?p.nome:'—'}</td><td>${rb}</td><td>${syncBadge(d.id)}</td><td><button class="btn btn-edit btn-xs" onclick="editarDespesa('${d.id}')">✏️</button> <button class="btn btn-danger btn-xs" onclick="deleteDespesa('${d.id}')">✕</button></td></tr>`;
+    return`<tr><td>${fmtDate(d.data)}</td><td>${f?f.nome:'—'}</td><td>${iNome}</td><td>${m?`<span class="badge badge-purple">${m.nome}</span>`:'—'}</td><td><span class="badge badge-gray">${d.categoria||'—'}</span></td><td class="text-right">${Number(d.qtd).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td class="c-muted">${d.unidade||'—'}</td><td class="text-right">${brl(d.preco)}</td><td class="text-right font-bold c-red">${brl(d.total)}</td><td><span class="badge badge-blue">${d.pagamento||'—'}</span></td><td class="c-muted">${c?c.nome:'—'}</td><td class="c-muted">${p?p.nome:'—'}</td><td>${rb}</td><td>${syncBadge(d.id)}</td><td><button class="btn btn-edit btn-xs" onclick="editarDespesa('${d.id}')">✏️</button> <button class="btn btn-danger btn-xs" onclick="deleteDespesa('${d.id}')">✕</button></td></tr>`;
   }).join('');
 }
 function clearDespFilter(){['df-ini','df-fim'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});['df-forn','df-cat','df-resp','df-reimb'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});renderDespesasTable();}
@@ -1869,6 +1883,17 @@ function deleteDespesa(id){
 }
 
 // ── RECEITAS ─────────────────────────────────────────────
+function autoSetRecStatus(canal){
+  const statusSel=document.getElementById('r-status');
+  const contaWrap=document.getElementById('r-conta')?.parentElement;
+  if(canal==='Crédito'){
+    if(statusSel){statusSel.value='a_receber';}
+    if(contaWrap)contaWrap.style.opacity='.4';
+  }else{
+    if(statusSel){statusSel.value='recebido';}
+    if(contaWrap)contaWrap.style.opacity='1';
+  }
+}
 function populateRecSelects(){
   const fSel=document.getElementById('r-fonte');if(fSel){const v=fSel.value;fSel.innerHTML='<option value="">— selecione —</option>'+sortByNome(DB.fontes).map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');if(v)fSel.value=v;}
   const rfSel=document.getElementById('rf-fonte');if(rfSel){const v=rfSel.value;rfSel.innerHTML='<option value="">Todas</option>'+sortByNome(DB.fontes).map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');if(v)rfSel.value=v;}
@@ -1878,7 +1903,19 @@ function saveReceita(){
   const data=document.getElementById('r-data').value;const fonteId=document.getElementById('r-fonte').value;
   const valor=parseFloat(document.getElementById('r-valor').value);
   if(!data||!fonteId||!valor){toast('Preencha os campos obrigatórios.','error');return;}
-  const d={data,ano:parseInt(data.slice(0,4)),fonteId,pagamento:document.getElementById('r-pgto').value,contaId:document.getElementById('r-conta').value||null,valor,status:document.getElementById('r-status').value,dataLiquidacao:null,contaLiquidacaoId:null,obs:document.getElementById('r-obs').value.trim()};
+  const canal=document.getElementById('r-pgto').value;
+  const contaId=document.getElementById('r-conta').value||null;
+  // Auto-set status: Crédito → always a_receber; Banco/Dinheiro → recebido
+  let status=document.getElementById('r-status').value;
+  if(canal==='Crédito'){status='a_receber';}
+  else if(canal==='Banco'||canal==='Dinheiro'){status='recebido';}
+  // For Banco: if only one bank account exists and none selected, auto-assign it
+  let resolvedContaId=contaId;
+  if(canal==='Banco'&&!resolvedContaId){
+    const bancos=getBancos();
+    if(bancos.length===1)resolvedContaId=bancos[0].id;
+  }
+  const d={data,ano:parseInt(data.slice(0,4)),fonteId,pagamento:canal,contaId:resolvedContaId,valor,status,dataLiquidacao:null,contaLiquidacaoId:null,obs:document.getElementById('r-obs').value.trim()};
   if(editingIds.receita){
     const rec=DB.receitas.find(r=>r.id===editingIds.receita);if(rec)Object.assign(rec,d);
     saveLocal();enqueue('receitas',editingIds.receita,'upsert',localToRow(rec,'receitas'));
@@ -2016,16 +2053,20 @@ function renderDashboard(){
   if(ldEl&&allD.length)charts['ld']=new Chart(ldEl,{type:'line',data:{labels:allD.map(fmtDate),datasets:[{data:allD.map(d=>{const b=rec.filter(r=>r.data===d).reduce((a,r)=>a+r.valor,0);const e=desp.filter(x=>x.data===d).reduce((a,x)=>a+x.total,0);return b-e;}),borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#2563EB'}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7280',maxRotation:45,font:{size:10}}},y:{ticks:{color:'#6B7280',font:{size:10}}}},responsive:true,maintainAspectRatio:true}});
   const fornMap={};desp.forEach(d=>{fornMap[d.fornecedorId]=(fornMap[d.fornecedorId]||0)+d.total;});const sf=Object.entries(fornMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   destroyChart('tf');const tfEl=document.getElementById('chartTopForn');
-  if(tfEl&&sf.length)charts['tf']=new Chart(tfEl,{type:'bar',data:{labels:sf.map(([id])=>DB.fornecedores.find(x=>x.id===id)?.nome||id),datasets:[{data:sf.map(([,v])=>v),backgroundColor:'rgba(220,38,38,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7280',font:{size:10}}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
+  const truncL=s=>s.length>18?s.slice(0,17)+'…':s;
+  const fornLabels=sf.map(([id])=>DB.fornecedores.find(x=>x.id===id)?.nome||id);
+  if(tfEl&&sf.length)charts['tf']=new Chart(tfEl,{type:'bar',data:{labels:fornLabels.map(truncL),datasets:[{data:sf.map(([,v])=>v),backgroundColor:'rgba(220,38,38,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>[fornLabels[ctx[0].dataIndex],brl(ctx[0].raw)]}}},scales:{x:{ticks:{color:'#6B7280',font:{size:10},callback:v=>brl(v)}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
   const itemMap={};desp.forEach(d=>{itemMap[d.itemId]=(itemMap[d.itemId]||0)+d.total;});const si=Object.entries(itemMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   destroyChart('ti');const tiEl=document.getElementById('chartTopItens');
-  if(tiEl&&si.length)charts['ti']=new Chart(tiEl,{type:'bar',data:{labels:si.map(([id])=>DB.itens.find(x=>x.id===id)?.nome||id),datasets:[{data:si.map(([,v])=>v),backgroundColor:'rgba(217,119,6,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7280',font:{size:10}}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
+  const itemLabels=si.map(([id])=>DB.itens.find(x=>x.id===id)?.nome||id);
+  if(tiEl&&si.length)charts['ti']=new Chart(tiEl,{type:'bar',data:{labels:itemLabels.map(truncL),datasets:[{data:si.map(([,v])=>v),backgroundColor:'rgba(217,119,6,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>[itemLabels[ctx[0].dataIndex],brl(ctx[0].raw)]}}},scales:{x:{ticks:{color:'#6B7280',font:{size:10},callback:v=>brl(v)}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
   const pagMap={};rec.forEach(r=>{pagMap[r.pagamento]=(pagMap[r.pagamento]||0)+r.valor;});
   destroyChart('pag');const pagEl=document.getElementById('chartPagto');
   if(pagEl&&Object.keys(pagMap).length)charts['pag']=new Chart(pagEl,{type:'pie',data:{labels:Object.keys(pagMap),datasets:[{data:Object.values(pagMap),backgroundColor:PALETTE,borderWidth:2,borderColor:'#fff'}]},options:{plugins:{legend:{position:'bottom',labels:{font:{size:10},color:'#374151'}}},responsive:true,maintainAspectRatio:true}});
   const marcaMap={};desp.filter(d=>d.marcaId).forEach(d=>{marcaMap[d.marcaId]=(marcaMap[d.marcaId]||0)+d.total;});const sm=Object.entries(marcaMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   destroyChart('ma');const maEl=document.getElementById('chartMarcas');
-  if(maEl&&sm.length)charts['ma']=new Chart(maEl,{type:'bar',data:{labels:sm.map(([id])=>DB.marcas.find(x=>x.id===id)?.nome||id),datasets:[{data:sm.map(([,v])=>v),backgroundColor:'rgba(124,58,237,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7280',font:{size:10}}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
+  const marcaLabels=sm.map(([id])=>DB.marcas.find(x=>x.id===id)?.nome||id);
+  if(maEl&&sm.length)charts['ma']=new Chart(maEl,{type:'bar',data:{labels:marcaLabels.map(truncL),datasets:[{data:sm.map(([,v])=>v),backgroundColor:'rgba(124,58,237,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>[marcaLabels[ctx[0].dataIndex],brl(ctx[0].raw)]}}},scales:{x:{ticks:{color:'#6B7280',font:{size:10},callback:v=>brl(v)}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
   const insts=DB.instituicoes.filter(i=>i.ano===ano);const distBase=liquida-apagar;
   destroyChart('di');const diEl=document.getElementById('chartDist');
   if(diEl&&insts.length)charts['di']=new Chart(diEl,{type:'pie',data:{labels:insts.map(i=>i.nome),datasets:[{data:insts.map(i=>distBase*i.pct/100),backgroundColor:PALETTE,borderWidth:2,borderColor:'#fff'}]},options:{plugins:{legend:{position:'bottom',labels:{font:{size:10},color:'#374151'}}},responsive:true,maintainAspectRatio:true}});
