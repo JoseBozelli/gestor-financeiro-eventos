@@ -353,6 +353,7 @@ tbody tr:hover td{background:var(--card2);}
       <div class="nav-section">
         <div class="nav-section-label">Cadastros</div>
         <button class="nav-item" onclick="showPage('fornecedores')"><span class="nav-icon">🏪</span><span class="nav-label">Fornecedores</span></button>
+        <button class="nav-item" onclick="showPage('itens')"><span class="nav-icon">🛒</span><span class="nav-label">Itens / Produtos</span></button>
         <button class="nav-item" onclick="showPage('pessoas')"><span class="nav-icon">👤</span><span class="nav-label">Pessoas</span></button>
         <button class="nav-item" onclick="showPage('distribuicao')"><span class="nav-icon">🤝</span><span class="nav-label">Distribuição</span></button>
       </div>
@@ -771,6 +772,46 @@ tbody tr:hover td{background:var(--card2);}
   </div>
 </div>
 
+<!-- ══ ITENS ══ -->
+<div class="page" id="page-itens">
+  <div class="section-header">
+    <div class="section-title" style="color:var(--white)">Itens / Produtos</div>
+    <div class="section-sub">Cadastre os produtos e ingredientes usados nas despesas. Categorias, marcas e unidades vêm das Listas de Validação.</div>
+  </div>
+  <div class="info-note">💡 Depois de cadastrar um item aqui, ele aparece no dropdown <strong>Item</strong> ao lançar uma despesa.</div>
+  <div class="card">
+    <div class="editing-banner" id="item-banner">✏️ Editando item</div>
+    <div class="card-title" style="margin-bottom:14px;">➕ Novo Item / Produto</div>
+    <div class="form-grid">
+      <div class="fg"><label>Nome *</label><input type="text" id="it-nome" placeholder="ex: Farinha de Trigo, Óleo de Soja"></div>
+      <div class="fg"><label>Categoria</label><select id="it-cat"><option value="">— selecione —</option></select></div>
+      <div class="fg"><label>Subcategoria</label><select id="it-subcat"><option value="">— selecione —</option></select></div>
+      <div class="fg"><label>Marca</label><select id="it-marca"><option value="">— selecione —</option></select></div>
+      <div class="fg"><label>Unidade padrão</label><select id="it-un"><option value="">— selecione —</option></select></div>
+      <div class="fg"><label>Obs</label><input type="text" id="it-obs"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="item-save-btn" onclick="saveItem()">💾 Salvar Item</button>
+      <button class="btn btn-secondary" id="item-cancel-btn" onclick="clearItem()" style="display:none">Cancelar</button>
+    </div>
+  </div>
+  <div class="filter-bar">
+    <div class="fg"><label>Categoria</label><select id="itf-cat"><option value="">Todas</option></select></div>
+    <div class="fg"><label>Marca</label><select id="itf-marca"><option value="">Todas</option></select></div>
+    <button class="btn btn-sm btn-primary" onclick="renderItensTable()">Filtrar</button>
+    <button class="btn btn-sm btn-secondary" onclick="clearItensFilter()">Limpar</button>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Itens Cadastrados — <span id="itens-count-label" class="c-muted"></span></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Nome</th><th>Categoria</th><th>Subcategoria</th><th>Marca</th><th>Unidade</th><th>Vezes usado</th><th>Obs</th><th>Ações</th></tr></thead>
+      <tbody id="itensBody"></tbody>
+    </table></div>
+  </div>
+</div>
+
 <!-- ══ DISTRIBUIÇÃO ══ -->
 <div class="page" id="page-distribuicao">
   <div class="section-header"><div class="section-title" style="color:var(--white)">Distribuição de Lucro</div></div>
@@ -962,7 +1003,7 @@ tbody tr:hover td{background:var(--card2);}
 
 <div id="toast"></div>
 <script>
-const APP_VERSION = '5.0.0';
+const APP_VERSION = '5.2.0';
 
 /* ═══════════════════════════════════════════════════════
    GESTOR FINANCEIRO DE EVENTOS — v5.0
@@ -1024,7 +1065,6 @@ const LISTA_DEFS = [
   {chave:'categoria_item',   label:'Categorias de Item',      icon:'📦'},
   {chave:'subcategoria_item',label:'Subcategorias de Item',   icon:'🏷'},
   {chave:'marca',            label:'Marcas',                  icon:'⭐'},
-  {chave:'item',             label:'Itens / Produtos',        icon:'🛒', hasExtra:['unidade']},
   {chave:'fonte',            label:'Fontes de Receita',       icon:'🎠'},
   {chave:'tipo_fornecedor',  label:'Tipos de Fornecedor',     icon:'🏪'},
   {chave:'tipo_fonte',       label:'Tipos de Fonte',          icon:'🎪'},
@@ -1172,7 +1212,7 @@ function localToRow(o,t){
   if(t==='despesas')return{id:o.id,data:o.data,ano:o.ano,fornecedor_id:o.fornecedorId,item_id:o.itemId,categoria:o.categoria,subcategoria:o.subcategoria,marca_id:o.marcaId,unidade:o.unidade,qtd:o.qtd,preco:o.preco,total:o.total,pagamento:o.pagamento,conta_id:o.contaId||null,responsavel_id:o.responsavelId,lancador_id:o.lancadorId,reembolsavel:o.reembolsavel,reembolsado:o.reembolsado,recibo:o.recibo,obs:o.obs};
   if(t==='receitas')return{id:o.id,data:o.data,ano:o.ano,fonte_id:o.fonteId,pagamento:o.pagamento,conta_id:o.contaId||null,valor:o.valor,status:normalizeStatus(o.status),data_liquidacao:o.dataLiquidacao||null,conta_liquidacao_id:o.contaLiquidacaoId||null,obs:o.obs};
   if(t==='instituicoes')return{id:o.id,nome:o.nome,pct:o.pct,ano:o.ano,obs:o.obs,pago:o.pago,data_pagto:o.dataPagto};
-  if(t==='itens')return{id:o.id,nome:o.nome,categoria:o.categoria,subcategoria:o.subcategoria||null,marca_id:o.marcaId||null,unidade:o.unidade,obs:o.obs};
+  if(t==='itens')return{id:o.id,nome:o.nome,categoria:o.categoria,subcategoria:o.subcategoria||null,marca_id:o.marcaNome||null,unidade:o.unidade,obs:o.obs};
   if(t==='posicoes')return{id:o.id,nome:o.nome,tipo:o.tipo,saldo_inicial:o.saldoInicial||0,ano:o.ano,obs:o.obs};
   if(t==='transferencias')return{id:o.id,data:o.data,ano:o.ano,tipo:o.tipo||'interna',origem_id:o.origemId||null,destino_id:o.destinoId||null,origem_ext:o.origemExt||null,valor:o.valor,descricao:o.descricao};
   if(t==='doacoes')return{id:o.id,data:o.data,ano:o.ano,doador_id:o.doadorId||null,tipo:o.tipo||'doacao',valor:o.valor,pagamento:o.pagamento,conta_id:o.contaId||null,finalidade:o.finalidade||null,recibo_emitido:o.reciboEmitido||false,obs:o.obs};
@@ -1183,7 +1223,7 @@ function rowToLocal(r,t){
   if(t==='despesas')return{id:r.id,data:r.data,ano:r.ano,fornecedorId:r.fornecedor_id,itemId:r.item_id,categoria:r.categoria,subcategoria:r.subcategoria,marcaId:r.marca_id,unidade:r.unidade,qtd:Number(r.qtd||0),preco:Number(r.preco||0),total:Number(r.total||0),pagamento:r.pagamento,contaId:r.conta_id,responsavelId:r.responsavel_id,lancadorId:r.lancador_id,reembolsavel:r.reembolsavel,reembolsado:r.reembolsado,recibo:r.recibo,obs:r.obs};
   if(t==='receitas')return{id:r.id,data:r.data,ano:r.ano,fonteId:r.fonte_id,pagamento:r.pagamento,contaId:r.conta_id,valor:Number(r.valor||0),status:normalizeStatus(r.status),dataLiquidacao:r.data_liquidacao,contaLiquidacaoId:r.conta_liquidacao_id,obs:r.obs};
   if(t==='instituicoes')return{id:r.id,nome:r.nome,pct:Number(r.pct||0),ano:r.ano,obs:r.obs,pago:r.pago,dataPagto:r.data_pagto};
-  if(t==='itens')return{id:r.id,nome:r.nome,categoria:r.categoria,subcategoria:r.subcategoria,marcaId:r.marca_id,unidade:r.unidade,obs:r.obs};
+  if(t==='itens')return{id:r.id,nome:r.nome,categoria:r.categoria,subcategoria:r.subcategoria,marcaNome:r.marca_id,unidade:r.unidade,obs:r.obs};
   if(t==='posicoes')return{id:r.id,nome:r.nome,tipo:r.tipo,saldoInicial:Number(r.saldo_inicial||0),ano:r.ano,obs:r.obs};
   if(t==='transferencias')return{id:r.id,data:r.data,ano:r.ano,tipo:r.tipo||'interna',origemId:r.origem_id,destinoId:r.destino_id,origemExt:r.origem_ext,valor:Number(r.valor||0),descricao:r.descricao};
   if(t==='doacoes')return{id:r.id,data:r.data,ano:r.ano,doadorId:r.doador_id,tipo:r.tipo||'doacao',valor:Number(r.valor||0),pagamento:r.pagamento,contaId:r.conta_id,finalidade:r.finalidade,reciboEmitido:r.recibo_emitido,obs:r.obs};
@@ -1214,7 +1254,7 @@ function showPage(id){
   document.querySelectorAll('.nav-item,.bnav-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-item,.bnav-item').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+id+"'"))b.classList.add('active');});
-  const titles={dashboard:'Dashboard',despesas:'Despesas',receitas:'Receitas',doacoes:'Doações e Patrocínios',caixa:'Caixa / Banco',fornecedores:'Fornecedores',pessoas:'Pessoas',distribuicao:'Distribuição de Lucro',listas:'Listas de Validação',relatorios:'Relatórios',dados:'Dados',ajuda:'Ajuda'};
+  const titles={dashboard:'Dashboard',despesas:'Despesas',receitas:'Receitas',doacoes:'Doações e Patrocínios',caixa:'Caixa / Banco',fornecedores:'Fornecedores',itens:'Itens / Produtos',pessoas:'Pessoas',distribuicao:'Distribuição de Lucro',listas:'Listas de Validação',relatorios:'Relatórios',dados:'Dados',ajuda:'Ajuda'};
   const el=document.getElementById('topbar-page-title');if(el)el.textContent=titles[id]||id;
   const pageMap={
     dashboard:renderDashboard,
@@ -1223,6 +1263,7 @@ function showPage(id){
     doacoes:()=>{populateDoacoesSelects();renderDoadoresTable();renderDoacoesTable();},
     caixa:()=>{renderPosicoesTable();populateTransfSelects();renderTransferenciasTable();renderLiquidacoes();},
     fornecedores:renderFornecedoresTable,
+    itens:()=>{populateItensSelects();renderItensTable();},
     pessoas:renderPessoasTable,
     distribuicao:renderDistribuicao,
     listas:renderListasPage,
@@ -1561,6 +1602,91 @@ function renderFornecedoresTable(){
   }).join('');
 }
 
+// ── ITENS ────────────────────────────────────────────────
+function populateItensSelects(){
+  const cats=getListaValues('categoria_item');
+  const subcats=getListaValues('subcategoria_item');
+  const marcas=getListaValues('marca');
+  const uns=getListaValues('unidade');
+  const sel=(id,opts,blank='— selecione —')=>{const el=document.getElementById(id);if(!el)return;const v=el.value;el.innerHTML=`<option value="">${blank}</option>`+opts.map(o=>`<option value="${o}">${o}</option>`).join('');if(v)el.value=v;};
+  sel('it-cat',cats);sel('it-subcat',subcats);sel('it-un',uns);
+  // marcas from lista (text values)
+  const marcaEl=document.getElementById('it-marca');if(marcaEl){const v=marcaEl.value;marcaEl.innerHTML='<option value="">— selecione —</option>'+marcas.map(m=>`<option value="${m}">${m}</option>`).join('');if(v)marcaEl.value=v;}
+  // filter selects
+  sel('itf-cat',cats,'Todas');
+  const itfMarca=document.getElementById('itf-marca');if(itfMarca){const v=itfMarca.value;itfMarca.innerHTML='<option value="">Todas</option>'+marcas.map(m=>`<option value="${m}">${m}</option>`).join('');if(v)itfMarca.value=v;}
+}
+function saveItem(){
+  const nome=document.getElementById('it-nome').value.trim();
+  if(!nome){toast('Informe o nome do item.','error');return;}
+  const d={nome,categoria:document.getElementById('it-cat').value,subcategoria:document.getElementById('it-subcat').value,marcaNome:document.getElementById('it-marca').value,unidade:document.getElementById('it-un').value,obs:document.getElementById('it-obs').value.trim()};
+  if(editingIds.item){
+    const rec=DB.itens.find(x=>x.id===editingIds.item);if(rec)Object.assign(rec,d);
+    saveLocal();enqueue('itens',editingIds.item,'upsert',localToRow(rec,'itens'));
+    clearItem();toast('Item atualizado!','success');
+  }else{
+    // Check duplicate
+    if(DB.itens.find(x=>x.nome.toLowerCase()===nome.toLowerCase())){toast('Item já existe.','warn');return;}
+    const rec={id:uid(),...d};DB.itens.push(rec);saveLocal();enqueue('itens',rec.id,'upsert',localToRow(rec,'itens'));
+    clearItem();toast('Item salvo!','success');
+  }
+  renderItensTable();populateDespSelects();
+}
+function editarItem(id){
+  const it=DB.itens.find(x=>x.id===id);if(!it)return;
+  populateItensSelects();
+  document.getElementById('it-nome').value=it.nome;
+  document.getElementById('it-cat').value=it.categoria||'';
+  document.getElementById('it-subcat').value=it.subcategoria||'';
+  document.getElementById('it-marca').value=it.marcaNome||'';
+  document.getElementById('it-un').value=it.unidade||'';
+  document.getElementById('it-obs').value=it.obs||'';
+  editingIds.item=id;showBanner('item-banner',true);
+  document.getElementById('item-save-btn').textContent='Atualizar Item';
+  document.getElementById('item-cancel-btn').style.display='inline-flex';
+}
+function clearItem(){
+  ['it-nome','it-obs'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+  ['it-cat','it-subcat','it-marca','it-un'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+  editingIds.item=null;showBanner('item-banner',false);
+  document.getElementById('item-save-btn').textContent='💾 Salvar Item';
+  document.getElementById('item-cancel-btn').style.display='none';
+}
+function deleteItem(id){
+  if(!confirm('Remover item? Despesas existentes não serão afetadas.'))return;
+  DB.itens=DB.itens.filter(x=>x.id!==id);saveLocal();enqueue('itens',id,'delete',null);
+  renderItensTable();populateDespSelects();toast('Removido.','success');
+}
+function clearItensFilter(){
+  ['itf-cat','itf-marca'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+  renderItensTable();
+}
+function renderItensTable(){
+  const catF=document.getElementById('itf-cat')?.value;
+  const marcaF=document.getElementById('itf-marca')?.value;
+  const rows=sortByNome(DB.itens).filter(it=>{
+    if(catF&&it.categoria!==catF)return false;
+    if(marcaF&&it.marcaNome!==marcaF)return false;
+    return true;
+  });
+  const lbl=document.getElementById('itens-count-label');if(lbl)lbl.textContent=`${rows.length} item(s)`;
+  const tbody=document.getElementById('itensBody');if(!tbody)return;
+  if(!rows.length){tbody.innerHTML='<tr class="empty-row"><td colspan="8">Nenhum item cadastrado. Adicione um acima.</td></tr>';return;}
+  tbody.innerHTML=rows.map(it=>{
+    const usos=DB.despesas.filter(d=>d.itemId===it.id).length;
+    return`<tr>
+      <td class="font-bold">${it.nome}</td>
+      <td>${it.categoria?`<span class="badge badge-gray">${it.categoria}</span>`:'—'}</td>
+      <td class="c-muted">${it.subcategoria||'—'}</td>
+      <td>${it.marcaNome?`<span class="badge badge-purple">${it.marcaNome}</span>`:'—'}</td>
+      <td class="c-muted">${it.unidade||'—'}</td>
+      <td class="text-center">${usos}</td>
+      <td class="c-muted">${it.obs||'—'}</td>
+      <td><button class="btn btn-edit btn-xs" onclick="editarItem('${it.id}')">✏️</button> <button class="btn btn-danger btn-xs" onclick="deleteItem('${it.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
 // ── PESSOAS ──────────────────────────────────────────────
 function savePessoa(){
   const nome=document.getElementById('pe-nome').value.trim();
@@ -1727,25 +1853,15 @@ function removeInvoiceLine(id){
   renderInvoiceLines();
 }
 function getItensOpts(){
-  // Merge DB.itens (from Supabase) with lista 'item' entries (added via Listas de Validação)
-  // Lista items use their id as value prefixed with 'lista:' so we can distinguish them
-  const dbItens=sortByNome(DB.itens).map(i=>`<option value="${i.id}">${i.nome}${i.categoria?' ('+i.categoria+')':''}</option>`);
-  const listaItens=getListaValues('item').filter(v=>!DB.itens.find(i=>i.nome.toLowerCase()===v.toLowerCase()))
-    .map(v=>`<option value="lista:${v}">${v}</option>`);
-  return'<option value="">— selecione —</option>'+dbItens.join('')+(listaItens.length?'<option disabled>── Listas de Validação ──</option>'+listaItens.join(''):'');
+  const opts=sortByNome(DB.itens).map(i=>`<option value="${i.id}">${i.nome}${i.categoria?' ('+i.categoria+')':''}</option>`);
+  return'<option value="">— selecione —</option>'+(opts.length?opts.join(''):'<option disabled>Nenhum item cadastrado — vá em Cadastros → Itens</option>');
 }
 function resolveItemFromLine(lineId){
-  // Returns {itemId, nome, categoria, subcategoria, marcaId, unidade} from either DB or lista
   const sel=document.querySelector(`#line-${lineId} select`);
   if(!sel||!sel.value)return null;
-  if(sel.value.startsWith('lista:')){
-    const nome=sel.value.replace('lista:','');
-    const un=document.getElementById('line-un-'+lineId)?.value||'un';
-    return{itemId:null,nome,categoria:'',subcategoria:'',marcaId:null,unidade:un,isLista:true};
-  }
   const item=DB.itens.find(i=>i.id===sel.value);
   if(!item)return null;
-  return{itemId:item.id,nome:item.nome,categoria:item.categoria||'',subcategoria:item.subcategoria||'',marcaId:item.marcaId||null,unidade:item.unidade||'un',isLista:false};
+  return{itemId:item.id,nome:item.nome,categoria:item.categoria||'',subcategoria:item.subcategoria||'',marcaNome:item.marcaNome||'',unidade:item.unidade||'un'};
 }
 function renderInvoiceLines(){
   const wrap=document.getElementById('invoice-lines-wrap');if(!wrap)return;
@@ -2053,7 +2169,7 @@ function renderDashboard(){
   if(ldEl&&allD.length)charts['ld']=new Chart(ldEl,{type:'line',data:{labels:allD.map(fmtDate),datasets:[{data:allD.map(d=>{const b=rec.filter(r=>r.data===d).reduce((a,r)=>a+r.valor,0);const e=desp.filter(x=>x.data===d).reduce((a,x)=>a+x.total,0);return b-e;}),borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#2563EB'}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7280',maxRotation:45,font:{size:10}}},y:{ticks:{color:'#6B7280',font:{size:10}}}},responsive:true,maintainAspectRatio:true}});
   const fornMap={};desp.forEach(d=>{fornMap[d.fornecedorId]=(fornMap[d.fornecedorId]||0)+d.total;});const sf=Object.entries(fornMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   destroyChart('tf');const tfEl=document.getElementById('chartTopForn');
-  const truncL=s=>s.length>18?s.slice(0,17)+'…':s;
+  const truncL=s=>s.length>13?s.slice(0,12)+'…':s;
   const fornLabels=sf.map(([id])=>DB.fornecedores.find(x=>x.id===id)?.nome||id);
   if(tfEl&&sf.length)charts['tf']=new Chart(tfEl,{type:'bar',data:{labels:fornLabels.map(truncL),datasets:[{data:sf.map(([,v])=>v),backgroundColor:'rgba(220,38,38,.8)',borderRadius:6,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>[fornLabels[ctx[0].dataIndex],brl(ctx[0].raw)]}}},scales:{x:{ticks:{color:'#6B7280',font:{size:10},callback:v=>brl(v)}},y:{ticks:{color:'#374151',font:{size:11}}}},responsive:true,maintainAspectRatio:true}});
   const itemMap={};desp.forEach(d=>{itemMap[d.itemId]=(itemMap[d.itemId]||0)+d.total;});const si=Object.entries(itemMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
