@@ -29,7 +29,7 @@
 html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:14px;-webkit-tap-highlight-color:transparent;}
 
 /* ── SETUP SCREEN ── */
-#setupScreen{display:none;min-height:100vh;background:var(--bg);align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:32px 20px;}
+/* config and login screens use inline flex display */
 .setup-logo{font-size:52px;line-height:1;}
 .setup-title{color:var(--white);font-size:24px;font-weight:800;text-align:center;line-height:1.3;}
 .setup-sub{color:var(--text3);font-size:13px;text-align:center;max-width:420px;line-height:1.6;}
@@ -299,18 +299,18 @@ tbody tr:hover td{background:var(--card2);}
 <body>
 
 <!-- ══════════════════════════════════════════════
-     SETUP SCREEN
+     CONFIG SCREEN (first time only)
 ══════════════════════════════════════════════ -->
-<div id="setupScreen">
+<div id="configScreen" style="display:none;min-height:100vh;background:var(--bg);align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:32px 20px;">
   <div class="setup-logo">📊</div>
-  <div class="setup-title" id="setup-app-title">Gestor Financeiro<br>de Eventos</div>
-  <p class="setup-sub">Configure o nome do seu projeto e conecte ao Supabase para sincronizar dados entre dispositivos.</p>
+  <div class="setup-title">Gestor Financeiro<br>de Eventos</div>
+  <p class="setup-sub">Primeira vez neste dispositivo? Configure o projeto e conecte ao Supabase. Você só precisa fazer isso uma vez.</p>
 
   <div class="setup-box">
     <h2>🏷 Nome do Projeto</h2>
     <div class="setup-field">
       <label>Nome do Projeto *</label>
-      <input type="text" id="setup-project-name" placeholder="ex: Festa São Pedro 2026">
+      <input type="text" id="cfg-project-name" placeholder="ex: Festa São Pedro 2026">
     </div>
   </div>
 
@@ -318,15 +318,39 @@ tbody tr:hover td{background:var(--card2);}
     <h2>🔗 Configurar Supabase</h2>
     <div class="setup-field">
       <label>URL do Projeto *</label>
-      <input type="text" id="setup-url" placeholder="https://xxxxxxxxxxx.supabase.co">
+      <input type="text" id="cfg-url" placeholder="https://xxxxxxxxxxx.supabase.co">
     </div>
     <div class="setup-field">
       <label>Chave Anon (anon key) *</label>
-      <input type="text" id="setup-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+      <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
     </div>
     <div class="setup-hint"><strong>Onde encontrar:</strong> Supabase → Project Settings → API → Legacy anon key.</div>
-    <button class="btn-setup" onclick="setupApp()">Conectar e Salvar</button>
+    <button class="btn-setup" onclick="saveConfig()">Salvar e Continuar →</button>
   </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════ -->
+<div id="loginScreen" style="display:none;min-height:100vh;background:var(--bg);align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:32px 20px;">
+  <div class="setup-logo">📊</div>
+  <div class="setup-title" id="login-project-title">Gestor Financeiro<br>de Eventos</div>
+  <p class="setup-sub">Entre com sua conta para acessar os dados do projeto.</p>
+
+  <div class="setup-box">
+    <h2>🔐 Entrar</h2>
+    <div class="setup-field">
+      <label>E-mail *</label>
+      <input type="email" id="login-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="setup-field">
+      <label>Senha *</label>
+      <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div id="login-error" style="display:none;background:rgba(220,38,38,.15);border-left:3px solid var(--red);padding:10px 14px;border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:12px;color:#FCA5A5;"></div>
+    <button class="btn-setup" id="login-btn" onclick="doLogin()">Entrar</button>
+  </div>
+  <button onclick="showConfigScreen()" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;text-decoration:underline;">⚙️ Reconfigurar projeto (outro dispositivo)</button>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -1006,7 +1030,7 @@ tbody tr:hover td{background:var(--card2);}
 
 <div id="toast"></div>
 <script>
-const APP_VERSION = '5.2.1';
+const APP_VERSION = '5.3.0';
 
 /* ═══════════════════════════════════════════════════════
    GESTOR FINANCEIRO DE EVENTOS — v5.0
@@ -1119,33 +1143,103 @@ function ensureCaixa(){
   }
 }
 
-// ── SUPABASE ──────────────────────────────────────────────
+// ── SUPABASE + AUTH ───────────────────────────────────────
 function initSupabase(){
   const url=localStorage.getItem('gfe_sb_url')||'';
   const key=localStorage.getItem('gfe_sb_key')||'';
   if(!url||!key)return false;
   try{SB=supabase.createClient(url,key);return true;}catch(e){return false;}
 }
-async function setupApp(){
-  const name=(document.getElementById('setup-project-name').value||'').trim();
-  const url=(document.getElementById('setup-url').value||'').trim();
-  const key=(document.getElementById('setup-key').value||'').trim();
+
+// Screen helpers
+function hideAllScreens(){
+  ['configScreen','loginScreen'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.style.display='none';
+  });
+  document.getElementById('appShell').style.display='none';
+}
+function showConfigScreen(){
+  hideAllScreens();
+  const el=document.getElementById('configScreen');if(el)el.style.display='flex';
+  const saved=localStorage.getItem('gfe_project_name');
+  const savedUrl=localStorage.getItem('gfe_sb_url');
+  const savedKey=localStorage.getItem('gfe_sb_key');
+  if(saved)document.getElementById('cfg-project-name').value=saved;
+  if(savedUrl)document.getElementById('cfg-url').value=savedUrl;
+  if(savedKey)document.getElementById('cfg-key').value=savedKey;
+}
+function showLoginScreen(){
+  hideAllScreens();
+  const el=document.getElementById('loginScreen');if(el)el.style.display='flex';
+  const name=localStorage.getItem('gfe_project_name')||'Gestor Financeiro de Eventos';
+  const title=document.getElementById('login-project-title');
+  if(title)title.textContent=name;
+  // Clear any previous error
+  const err=document.getElementById('login-error');if(err)err.style.display='none';
+  // Focus email field
+  setTimeout(()=>document.getElementById('login-email')?.focus(),100);
+}
+
+// Step 1: Save config (first time only)
+async function saveConfig(){
+  const name=(document.getElementById('cfg-project-name').value||'').trim();
+  const url=(document.getElementById('cfg-url').value||'').trim();
+  const key=(document.getElementById('cfg-key').value||'').trim();
   if(!name){toast('Informe o nome do projeto.','error');return;}
   if(!url||!key){toast('Preencha URL e chave do Supabase.','error');return;}
   localStorage.setItem('gfe_project_name',name);
   localStorage.setItem('gfe_sb_url',url);
   localStorage.setItem('gfe_sb_key',key);
   DB.projectName=name;
-  if(initSupabase()){showApp();await pullFromSupabase();toast('Conectado!','success');}
-  else toast('Erro ao conectar. Verifique as credenciais.','error');
+  if(!initSupabase()){toast('Erro ao conectar. Verifique as credenciais.','error');return;}
+  showLoginScreen();
 }
+
+// Step 2: Login
+async function doLogin(){
+  const email=(document.getElementById('login-email').value||'').trim();
+  const password=document.getElementById('login-password').value||'';
+  const btn=document.getElementById('login-btn');
+  const errEl=document.getElementById('login-error');
+  if(!email||!password){showLoginError('Preencha e-mail e senha.');return;}
+  if(btn){btn.textContent='Entrando…';btn.disabled=true;}
+  try{
+    const{data,error}=await SB.auth.signInWithPassword({email,password});
+    if(error)throw error;
+    // Success — clear password field for security
+    document.getElementById('login-password').value='';
+    if(errEl)errEl.style.display='none';
+    showApp();
+    await pullFromSupabase();
+    toast('Bem-vindo!','success');
+  }catch(e){
+    showLoginError(e.message==='Invalid login credentials'?'E-mail ou senha incorretos.':e.message||'Erro ao entrar.');
+  }finally{
+    if(btn){btn.textContent='Entrar';btn.disabled=false;}
+  }
+}
+function showLoginError(msg){
+  const el=document.getElementById('login-error');
+  if(el){el.textContent=msg;el.style.display='block';}
+}
+
+// Sign out
+async function sair(){
+  if(!confirm('Sair? Os dados permanecem salvos no Supabase.'))return;
+  if(SB)await SB.auth.signOut();
+  hideAllScreens();
+  showLoginScreen();
+}
+
+// Reconfig (clears credentials, forces config screen)
 function reconfigApp(){
-  if(!confirm('Reconfigurar o projeto? As credenciais serão limpas.'))return;
-  localStorage.removeItem('gfe_sb_url');localStorage.removeItem('gfe_sb_key');localStorage.removeItem('gfe_project_name');
-  document.getElementById('appShell').style.display='none';
-  document.getElementById('setupScreen').style.display='flex';
+  if(!confirm('Reconfigurar? As credenciais deste dispositivo serão removidas.'))return;
+  if(SB)SB.auth.signOut();
+  localStorage.removeItem('gfe_sb_url');
+  localStorage.removeItem('gfe_sb_key');
+  localStorage.removeItem('gfe_project_name');
+  showConfigScreen();
 }
-function sair(){if(!confirm('Sair? Os dados permanecem salvos no Supabase.'))return;reconfigApp();}
 
 // ── SYNC ──────────────────────────────────────────────────
 function setSyncStatus(s,label){
@@ -2325,7 +2419,7 @@ async function apagarTudo(){
 
 // ── INIT ─────────────────────────────────────────────────
 function showApp(){
-  document.getElementById('setupScreen').style.display='none';
+  hideAllScreens();
   document.getElementById('appShell').style.display='block';
   const name=DB.projectName||localStorage.getItem('gfe_project_name')||'Gestor Financeiro';
   DB.projectName=name;
@@ -2337,29 +2431,44 @@ function showApp(){
   renderDashboard();
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async()=>{
   loadLocal();
-  const savedName=localStorage.getItem('gfe_project_name');
   const savedUrl=localStorage.getItem('gfe_sb_url');
   const savedKey=localStorage.getItem('gfe_sb_key');
-  if(savedName&&savedUrl&&savedKey&&initSupabase()){
+  const savedName=localStorage.getItem('gfe_project_name');
+
+  // No config saved yet → show config screen
+  if(!savedUrl||!savedKey||!savedName){
+    showConfigScreen();return;
+  }
+
+  // Config exists — init Supabase
+  if(!initSupabase()){showConfigScreen();return;}
+
+  // Check for existing session
+  const{data:{session}}=await SB.auth.getSession();
+  if(session){
+    // Already logged in — go straight to app
     showApp();
-    // Always pull on load for cross-browser sync
-    pullFromSupabase().then(()=>{
-      renderListasPage();
-      populateDespSelects();
-    });
+    await pullFromSupabase();
     processSyncQueue();
   }else{
-    document.getElementById('setupScreen').style.display='flex';
-    if(savedName)document.getElementById('setup-project-name').value=savedName;
-    if(savedUrl)document.getElementById('setup-url').value=savedUrl;
-    if(savedKey)document.getElementById('setup-key').value=savedKey;
+    // Config exists but not logged in → show login
+    showLoginScreen();
   }
-  // Cross-browser sync on window focus
-  window.addEventListener('focus',()=>{
-    if(SB&&document.getElementById('appShell').style.display!=='none'){
-      pullFromSupabase();
+
+  // Listen for auth state changes (handles token refresh, signout)
+  SB.auth.onAuthStateChange((event,session)=>{
+    if(event==='SIGNED_OUT'){
+      hideAllScreens();showLoginScreen();
+    }
+  });
+
+  // Cross-browser sync on window focus — only if logged in
+  window.addEventListener('focus',async()=>{
+    if(document.getElementById('appShell').style.display==='block'){
+      const{data:{session}}=await SB.auth.getSession();
+      if(session)pullFromSupabase();
     }
   });
 });
