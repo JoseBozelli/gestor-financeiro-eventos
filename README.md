@@ -75,10 +75,11 @@ In your Supabase project go to **Project Settings → API** and copy:
 
 1. Open the [live app](https://josebozelli.github.io/gestor-financeiro-eventos)
 2. Enter your project name, Supabase URL, and anon key on the setup screen
-3. Click **Connect and Save**
-4. Go to **Data → Download from Supabase** to pull any existing data
+3. Click **Save and Continue**
+4. Log in with your email and password on the login screen
+5. Go to **Data → Download from Supabase** to pull any existing data
 
-Credentials are stored only in your browser's `localStorage` — they never leave your device.
+Credentials are stored only in your browser's `localStorage` — they never leave your device. Your password is handled entirely by Supabase Auth and is never stored in the app.
 
 ---
 
@@ -136,6 +137,7 @@ Every transaction automatically updates the correct financial position — no ma
 
 | Version | Description |
 |---|---|
+| v5.3.0 | Supabase Auth login screen, RLS enabled — proper security |
 | v5.2.1 | Cache-control headers for reliable updates in Chrome app mode |
 | v5.2.0 | Items CRUD page, Validation Lists restructured, chart label fixes |
 | v5.1.0 | Invoice item dropdown fix, liquidation automation, chart Y-axis truncation |
@@ -170,7 +172,7 @@ gestor-financeiro-eventos/
 
 ### Roadmap
 
-- [ ] Supabase Auth + Row Level Security (proper multi-user authentication)
+- [x] Supabase Auth + Row Level Security (proper multi-user authentication)
 - [ ] Real-time sync between devices (Supabase Realtime)
 - [ ] Word / PowerPoint report export
 
@@ -219,10 +221,11 @@ Em **Project Settings → API** copie:
 
 1. Abra o [app](https://josebozelli.github.io/gestor-financeiro-eventos)
 2. Informe o nome do projeto, URL e chave do Supabase na tela de configuração
-3. Clique em **Conectar e Salvar**
-4. Vá em **Dados → Baixar do Supabase** para carregar os dados existentes
+3. Clique em **Salvar e Continuar**
+4. Faça login com seu e-mail e senha na tela de login
+5. Vá em **Dados → Baixar do Supabase** para carregar os dados existentes
 
-As credenciais ficam armazenadas apenas no `localStorage` do seu navegador — nunca saem do seu dispositivo.
+As credenciais ficam armazenadas apenas no `localStorage` do seu navegador — nunca saem do seu dispositivo. A senha é gerenciada pelo Supabase Auth e nunca é armazenada no app.
 
 ---
 
@@ -280,6 +283,7 @@ Cada lançamento atualiza automaticamente a posição financeira correta — sem
 
 | Versão | Descrição |
 |---|---|
+| v5.3.0 | Login com Supabase Auth, RLS ativado — segurança adequada |
 | v5.2.1 | Cache-control para atualização confiável no modo app do Chrome |
 | v5.2.0 | Página de Itens/Produtos, reestruturação das Listas de Validação, ajustes nos gráficos |
 | v5.1.0 | Correção do dropdown de itens, automação de liquidações, truncagem de rótulos nos gráficos |
@@ -303,7 +307,7 @@ Cada lançamento atualiza automaticamente a posição financeira correta — sem
 
 ### Roadmap
 
-- [ ] Supabase Auth + Row Level Security (autenticação multi-usuário)
+- [x] Supabase Auth + Row Level Security (autenticação multi-usuário)
 - [ ] Sincronização em tempo real entre dispositivos (Supabase Realtime)
 - [ ] Exportação de relatórios para Word / PowerPoint
 
